@@ -1134,6 +1134,7 @@ window.TraceKit = TraceKit;
       _version,
       _filteredKeys,
       _raygunApiUrl = 'https://api.raygun.io',
+      _ajaxError,
       $document;
 
   if ($) {
@@ -1160,6 +1161,12 @@ window.TraceKit = TraceKit;
         if (options.debugMode)
         {
           _debugMode = options.debugMode;
+        }
+
+        //ensure ajax error option is a function
+        if (isFunction(options.ajaxError))
+        {
+          _ajaxError = options.ajaxError;
         }
       }
 
@@ -1196,14 +1203,14 @@ window.TraceKit = TraceKit;
       return Raygun;
     },
 
-    send: function (ex, customData, tags) {
+    send: function (ex, customData, tags, onComplete) {
       try {
         processUnhandledException(_traceKit.computeStackTrace(ex), {
           customData: typeof _customData === 'function' ?
             merge(_customData(), customData) :
             merge(_customData, customData),
           tags: mergeArray(_tags, tags)
-        });
+        }, onComplete);
       }
       catch (traceKitException) {
         if (ex !== traceKitException) {
@@ -1264,13 +1271,21 @@ window.TraceKit = TraceKit;
     var message = 'AJAX Error: ' +
         (jqXHR.statusText || 'unknown') +' '+
         (ajaxSettings.type || 'unknown') + ' '+
-        (truncateURL(ajaxSettings.url) || 'unknown');
+        (truncateURL(ajaxSettings.url) || 'unknown'),
+        onComplete;
 
     // ignore ajax abort if set in the options
     if (_ignoreAjaxAbort) {
       if (!jqXHR.getAllResponseHeaders()) {
          return;
        }
+    }
+
+    //if there is an ajaxError function in the options
+    if (_ajaxError) {
+        onComplete = function() {
+            _ajaxError(event, jqXHR, ajaxSettings, thrownError);
+        };
     }
 
     Raygun.send(thrownError || event.type, {
@@ -1281,7 +1296,8 @@ window.TraceKit = TraceKit;
       ajaxErrorMessage: message,
       contentType: ajaxSettings.contentType,
       data: ajaxSettings.data ? ajaxSettings.data.slice(0, 10240) : undefined,
-      responseText: jqXHR.responseText ? jqXHR.responseText.slice(0, 10240) : undefined });
+      responseText: jqXHR.responseText ? jqXHR.responseText.slice(0, 10240) : undefined
+    }, undefined, onComplete);
   }
 
   function log(message, data) {
@@ -1331,6 +1347,10 @@ window.TraceKit = TraceKit;
     return true;
   }
 
+  function isFunction(o) {
+    return !!(o && o.constructor && o.call && o.apply);
+  }
+
   function getRandomInt() {
     return Math.floor(Math.random() * 9007199254740993);
   }
@@ -1377,7 +1397,7 @@ window.TraceKit = TraceKit;
     }
   }
 
-  function processUnhandledException(stackTrace, options) {
+  function processUnhandledException(stackTrace, options, onComplete) {
     var stack = [],
         qs = {};
 
@@ -1493,17 +1513,17 @@ window.TraceKit = TraceKit;
       payload.Details.User = _user;
     }
 
-    sendToRaygun(payload);
+    sendToRaygun(payload, onComplete);
   }
 
-  function sendToRaygun(data) {
+  function sendToRaygun(data, onComplete) {
     if (!isApiKeyConfigured()) {
       return;
     }
 
     log('Sending exception data to Raygun:', data);
     var url = _raygunApiUrl + '/entries?apikey=' + encodeURIComponent(_raygunApiKey);
-    makePostCorsRequest(url, JSON.stringify(data));
+    makePostCorsRequest(url, JSON.stringify(data), onComplete);
   }
 
   // Create the XHR object.
@@ -1534,8 +1554,10 @@ window.TraceKit = TraceKit;
   }
 
   // Make the actual CORS request.
-  function makePostCorsRequest(url, data) {
+  function makePostCorsRequest(url, data, onComplete) {
     var xhr = createCORSRequest('POST', url, data);
+
+    onComplete = isFunction(onComplete) ? onComplete : undefined;
 
     if ('withCredentials' in xhr) {
 
@@ -1549,6 +1571,10 @@ window.TraceKit = TraceKit;
         } else if (_enableOfflineSave && xhr.status !== 403 && xhr.status !== 400) {
           offlineSave(data);
         }
+
+        if (onComplete) {
+          onComplete();
+        }
       };
 
       xhr.onload = function () {
@@ -1561,16 +1587,25 @@ window.TraceKit = TraceKit;
           log('Raygun: saved error locally');
           offlineSave(data);
         }
+        if (onComplete) {
+          onComplete();
+        }
       };
 
       xhr.onload = function () {
         log('logged error to Raygun');
         sendSavedErrors();
+        if (onComplete) {
+          onComplete();
+        }
       };
     }
 
     xhr.onerror = function () {
       log('failed to log error to Raygun');
+      if (onComplete) {
+        onComplete();
+      }
     };
 
     if (!xhr) {
