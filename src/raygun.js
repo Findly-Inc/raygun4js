@@ -136,7 +136,9 @@
       // truncate after fourth /, or 24 characters, whichever is shorter
       // /api/1/diagrams/xyz/server becomes
       // /api/1/diagrams/...
+      //
       var truncated = url;
+      if (truncated) {
       var path = url.split('//')[1];
 
       if (path) {
@@ -148,6 +150,7 @@
                         truncated_parts : truncated_length;
         if (truncated !== sanitizedPath) {
             truncated += '..';
+            }
         }
       }
 

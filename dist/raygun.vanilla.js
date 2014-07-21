@@ -1,4 +1,4 @@
-/*! Raygun4js - v1.9.2 - 2014-07-09
+/*! Raygun4js - v1.9.2 - 2014-07-21
 * https://github.com/MindscapeHQ/raygun4js
 * Copyright (c) 2014 MindscapeHQ; Licensed MIT */
 ;(function(window, undefined) {
@@ -1249,7 +1249,9 @@ window.TraceKit = TraceKit;
       // truncate after fourth /, or 24 characters, whichever is shorter
       // /api/1/diagrams/xyz/server becomes
       // /api/1/diagrams/...
+      //
       var truncated = url;
+      if (truncated) {
       var path = url.split('//')[1];
 
       if (path) {
@@ -1261,6 +1263,7 @@ window.TraceKit = TraceKit;
                         truncated_parts : truncated_length;
         if (truncated !== sanitizedPath) {
             truncated += '..';
+            }
         }
       }
 
