@@ -15,6 +15,7 @@
       _allowInsecureSubmissions = false,
       _ignoreAjaxAbort = false,
       _enableOfflineSave = false,
+      _ignore3rdPartyErrors = false,
       _customData = {},
       _tags = [],
       _user,
@@ -50,7 +51,12 @@
           _debugMode = options.debugMode;
         }
 
-        //ensure ajax error option is a function
+        if(options.ignore3rdPartyErrors)
+        {
+          _ignore3rdPartyErrors = true;
+        }
+	
+	//ensure ajax error option is a function
         if (isFunction(options.ajaxError))
         {
           _ajaxError = options.ajaxError;
@@ -107,8 +113,26 @@
       return Raygun;
     },
 
-    setUser: function (user) {
-      _user = { 'Identifier': user };
+    setUser: function (user, isAnonymous, email, fullName, firstName, uuid) {
+      _user = {
+        'Identifier': user
+      };
+      if(isAnonymous) {
+        _user['IsAnonymous'] = isAnonymous;
+      }
+      if(email) {
+        _user['Email'] = email;
+      }
+      if(fullName) {
+        _user['FullName'] = fullName;
+      }
+      if(firstName) {
+        _user['FirstName'] = firstName;
+      }
+      if(uuid) {
+        _user['UUID'] = uuid;
+      }
+
       return Raygun;
     },
 
@@ -185,8 +209,8 @@
       url: ajaxSettings.url,
       ajaxErrorMessage: message,
       contentType: ajaxSettings.contentType,
-      data: ajaxSettings.data ? ajaxSettings.data.slice(0, 10240) : undefined,
-      responseText: jqXHR.responseText ? jqXHR.responseText.slice(0, 10240) : undefined
+      requestData: ajaxSettings.data ? ajaxSettings.data.slice(0, 10240) : undefined,
+      responseData: jqXHR.responseText ? jqXHR.responseText.slice(0, 10240) : undefined
     }, undefined, onComplete);
   }
 
@@ -291,6 +315,10 @@
     var stack = [],
         qs = {};
 
+    if (_ignore3rdPartyErrors && (!stackTrace.stack || !stackTrace.stack.length)) {
+      return;
+    }
+
     if (stackTrace.stack && stackTrace.stack.length) {
       forEach(stackTrace.stack, function (i, frame) {
         stack.push({
@@ -316,10 +344,18 @@
                  qs[key] = value;
               }
             } else {
+              var included = true;
               for (i = 0; i < _filteredKeys.length; i++) {
                 if (_filteredKeys[i] === key) {
-                   qs[key] = value;
+                   included = false;
+                   break;
                 }
+              }
+              if (included) {
+                   qs[key] = value;
+              }
+              else {
+                qs[key] = '<removed by filter>';
               }
             }
           } else {
@@ -382,7 +418,7 @@
         },
         'Client': {
           'Name': 'raygun-js',
-          'Version': '1.9.2'
+          'Version': '1.11.1'
         },
         'UserCustomData': finalCustomData,
         'Tags': options.tags,
