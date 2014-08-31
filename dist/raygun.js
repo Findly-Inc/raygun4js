@@ -1,7 +1,7 @@
-/*! Raygun4js - v1.9.2 - 2014-07-21
+/*! Raygun4js - v1.11.2 - 2014-09-01
 * https://github.com/MindscapeHQ/raygun4js
 * Copyright (c) 2014 MindscapeHQ; Licensed MIT */
-;(function(window, undefined) {
+(function(window, undefined) {
 
 
 var TraceKit = {};
@@ -104,6 +104,7 @@ TraceKit.report = (function reportModuleWrapper() {
      * @param {Function} handler
      */
     function subscribe(handler) {
+        installGlobalHandler();
         handlers.push(handler);
     }
 
@@ -143,7 +144,7 @@ TraceKit.report = (function reportModuleWrapper() {
         }
     }
 
-    var _oldOnerrorHandler = window.onerror;
+    var _oldOnerrorHandler, _onErrorHandlerInstalled;
 
     /**
      * Ensures all global unhandled exceptions are recorded.
@@ -153,7 +154,7 @@ TraceKit.report = (function reportModuleWrapper() {
      * @param {(number|string)} lineNo The line number at which the error
      * occurred.
      */
-    window.onerror = function traceKitWindowOnError(message, url, lineNo, columnNo, errorObj) {
+    function traceKitWindowOnError(message, url, lineNo, columnNo, errorObj) {
         var stack = null;
 
         if (errorObj) {
@@ -191,7 +192,17 @@ TraceKit.report = (function reportModuleWrapper() {
         }
 
         return false;
-    };
+    }
+
+    function installGlobalHandler ()
+    {
+        if (_onErrorHandlerInstalled === true) {
+           return;
+        }
+        _oldOnerrorHandler = window.onerror;
+        window.onerror = traceKitWindowOnError;
+        _onErrorHandlerInstalled = true;
+    }
 
     /**
      * Reports an unhandled Error to TraceKit.
@@ -316,14 +327,14 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
             return '';
         }
         try {
-            function getXHR() {
+            var getXHR = function() {
                 try {
                     return new window.XMLHttpRequest();
                 } catch (e) {
                     // explicitly bubble up the exception if not found
                     return new window.ActiveXObject('Microsoft.XMLHTTP');
                 }
-            }
+            };
 
             var request = getXHR();
             request.open('GET', url, false);
@@ -347,7 +358,7 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
 
             url = url || "";
 
-            if (url.indexOf(document.domain) !== -1) {
+            if (url.indexOf && url.indexOf(document.domain) !== -1) {
                 source = loadSource(url);
             }
             sourceCache[url] = source ? source.split('\n') : [];
@@ -616,7 +627,7 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
             return null;
         }
 
-        var chrome = /^\s*at (?:((?:\[object object\])?\S+) )?\(?((?:file|http|https):.*?):(\d+)(?::(\d+))?\)?\s*$/i,
+        var chrome = /^\s*at (?:((?:\[object object\])?\S+(?: \[as \S+\])?) )?\(?((?:file|http|https|chrome-extension):.*?):(\d+)(?::(\d+))?\)?\s*$/i,
             gecko = /^\s*(\S*)(?:\((.*?)\))?@((?:file|http|https).*?):(\d+)(?::(\d+))?\s*$/i,
             winjs = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:ms-appx|http|https):.*?):(\d+)(?::(\d+))?\)?\s*$/i,
             lines = ex.stack.split('\n'),
@@ -1059,8 +1070,6 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
         } catch (ex) {
             return computeStackTrace(ex, depth + 1);
         }
-
-        return null;
     }
 
     computeStackTrace.augmentStackTraceWithInitialElement = augmentStackTraceWithInitialElement;
@@ -1192,6 +1201,7 @@ window.TraceKit = TraceKit;
       _allowInsecureSubmissions = false,
       _ignoreAjaxAbort = false,
       _enableOfflineSave = false,
+      _ignore3rdPartyErrors = false,
       _customData = {},
       _tags = [],
       _user,
@@ -1227,7 +1237,12 @@ window.TraceKit = TraceKit;
           _debugMode = options.debugMode;
         }
 
-        //ensure ajax error option is a function
+        if(options.ignore3rdPartyErrors)
+        {
+          _ignore3rdPartyErrors = true;
+        }
+	
+	//ensure ajax error option is a function
         if (isFunction(options.ajaxError))
         {
           _ajaxError = options.ajaxError;
@@ -1246,11 +1261,12 @@ window.TraceKit = TraceKit;
 
     withTags: function (tags) {
       _tags = tags;
+      return Raygun;
     },
 
     attach: function () {
       if (!isApiKeyConfigured()) {
-        return;
+        return Raygun;
       }
       _traceKit.report.subscribe(processUnhandledException);
       if ($document) {
@@ -1284,8 +1300,26 @@ window.TraceKit = TraceKit;
       return Raygun;
     },
 
-    setUser: function (user) {
-      _user = { 'Identifier': user };
+    setUser: function (user, isAnonymous, email, fullName, firstName, uuid) {
+      _user = {
+        'Identifier': user
+      };
+      if(isAnonymous) {
+        _user['IsAnonymous'] = isAnonymous;
+      }
+      if(email) {
+        _user['Email'] = email;
+      }
+      if(fullName) {
+        _user['FullName'] = fullName;
+      }
+      if(firstName) {
+        _user['FirstName'] = firstName;
+      }
+      if(uuid) {
+        _user['UUID'] = uuid;
+      }
+
       return Raygun;
     },
 
@@ -1301,6 +1335,7 @@ window.TraceKit = TraceKit;
 
       return Raygun;
     },
+
     filterSensitiveData: function (filteredKeys) {
       _filteredKeys = filteredKeys;
       return Raygun;
@@ -1362,8 +1397,8 @@ window.TraceKit = TraceKit;
       url: ajaxSettings.url,
       ajaxErrorMessage: message,
       contentType: ajaxSettings.contentType,
-      data: ajaxSettings.data ? ajaxSettings.data.slice(0, 10240) : undefined,
-      responseText: jqXHR.responseText ? jqXHR.responseText.slice(0, 10240) : undefined
+      requestData: ajaxSettings.data && ajaxSettings.slice ? ajaxSettings.data.slice(0, 10240) : undefined,
+      responseData: jqXHR.responseText && ajaxSettings.slice ? jqXHR.responseText.slice(0, 10240) : undefined
     }, undefined, onComplete);
   }
 
@@ -1468,6 +1503,10 @@ window.TraceKit = TraceKit;
     var stack = [],
         qs = {};
 
+    if (_ignore3rdPartyErrors && (!stackTrace.stack || !stackTrace.stack.length)) {
+      return;
+    }
+
     if (stackTrace.stack && stackTrace.stack.length) {
       forEach(stackTrace.stack, function (i, frame) {
         stack.push({
@@ -1493,10 +1532,18 @@ window.TraceKit = TraceKit;
                  qs[key] = value;
               }
             } else {
+              var included = true;
               for (i = 0; i < _filteredKeys.length; i++) {
                 if (_filteredKeys[i] === key) {
-                   qs[key] = value;
+                   included = false;
+                   break;
                 }
+              }
+              if (included) {
+                   qs[key] = value;
+              }
+              else {
+                qs[key] = '<removed by filter>';
               }
             }
           } else {
@@ -1559,7 +1606,7 @@ window.TraceKit = TraceKit;
         },
         'Client': {
           'Name': 'raygun-js',
-          'Version': '1.9.2'
+          'Version': '1.11.3'
         },
         'UserCustomData': finalCustomData,
         'Tags': options.tags,
