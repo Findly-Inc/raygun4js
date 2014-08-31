@@ -75,11 +75,12 @@
 
     withTags: function (tags) {
       _tags = tags;
+      return Raygun;
     },
 
     attach: function () {
       if (!isApiKeyConfigured()) {
-        return;
+        return Raygun;
       }
       _traceKit.report.subscribe(processUnhandledException);
       if ($document) {
@@ -148,6 +149,7 @@
 
       return Raygun;
     },
+
     filterSensitiveData: function (filteredKeys) {
       _filteredKeys = filteredKeys;
       return Raygun;
@@ -418,7 +420,7 @@
         },
         'Client': {
           'Name': 'raygun-js',
-          'Version': '1.11.1'
+          'Version': '1.11.2'
         },
         'UserCustomData': finalCustomData,
         'Tags': options.tags,
