@@ -55,7 +55,7 @@
         {
           _ignore3rdPartyErrors = true;
         }
-	
+
 	//ensure ajax error option is a function
         if (isFunction(options.ajaxError))
         {
@@ -211,8 +211,8 @@
       url: ajaxSettings.url,
       ajaxErrorMessage: message,
       contentType: ajaxSettings.contentType,
-      requestData: ajaxSettings.data && ajaxSettings.slice ? ajaxSettings.data.slice(0, 10240) : undefined,
-      responseData: jqXHR.responseText && ajaxSettings.slice ? jqXHR.responseText.slice(0, 10240) : undefined
+      requestData: ajaxSettings.data && ajaxSettings.data.slice ? ajaxSettings.data.slice(0, 10240) : undefined,
+      responseData: jqXHR.responseText && jqXHR.responseText.slice ? jqXHR.responseText.slice(0, 10240) : undefined
     }, undefined, onComplete);
   }
 

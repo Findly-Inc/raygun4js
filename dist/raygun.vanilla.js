@@ -1,4 +1,4 @@
-/*! Raygun4js - v1.11.2 - 2014-09-01
+/*! Raygun4js - v1.11.2 - 2014-09-04
 * https://github.com/MindscapeHQ/raygun4js
 * Copyright (c) 2014 MindscapeHQ; Licensed MIT */
 (function(window, undefined) {
@@ -1177,7 +1177,7 @@ window.TraceKit = TraceKit;
         {
           _ignore3rdPartyErrors = true;
         }
-	
+
 	//ensure ajax error option is a function
         if (isFunction(options.ajaxError))
         {
@@ -1333,8 +1333,8 @@ window.TraceKit = TraceKit;
       url: ajaxSettings.url,
       ajaxErrorMessage: message,
       contentType: ajaxSettings.contentType,
-      requestData: ajaxSettings.data && ajaxSettings.slice ? ajaxSettings.data.slice(0, 10240) : undefined,
-      responseData: jqXHR.responseText && ajaxSettings.slice ? jqXHR.responseText.slice(0, 10240) : undefined
+      requestData: ajaxSettings.data && ajaxSettings.data.slice ? ajaxSettings.data.slice(0, 10240) : undefined,
+      responseData: jqXHR.responseText && jqXHR.responseText.slice ? jqXHR.responseText.slice(0, 10240) : undefined
     }, undefined, onComplete);
   }
 
